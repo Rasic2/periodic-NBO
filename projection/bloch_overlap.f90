@@ -80,14 +80,15 @@ SUBROUTINE bloch_space_overlap(AO_basis,index_l)
      !For a gamma point calculation, it is impossible to recover real space information in the back transform 
      !Therfore it is unnecessary to calculate all the overlap matrices separately since they will all be lost once you go to k-space
      !Therefore, all real space overlap will instead be stored additively in s_mat_tilde 
-     s_mat_tilde = 0.d0
-     DO il=1,num_l 
-        lvec = 0.d0
-        DO j=1,3
-           lvec = lvec + a(:,j)*index_l(j,il)
-        ENDDO
-        CALL real_overlap_gam(lvec,AO_basis,s_mat_tilde)
-     ENDDO
+    !  s_mat_tilde = 0.d0
+    !  DO il=1,num_l 
+    !     lvec = 0.d0
+    !     DO j=1,3
+    !        lvec = lvec + a(:,j)*index_l(j,il)
+    !     ENDDO
+        
+    !  ENDDO
+		 CALL real_overlap_gam(num_l,index_l,AO_basis,s_mat_tilde)
      !DO j=1,s_dim
      !   WRITE(6,'(17f8.4)')s_mat_tilde(j,:)
      !ENDDO
@@ -280,15 +281,17 @@ SUBROUTINE check_linear_depend(input_mat,eig_min)
 END SUBROUTINE check_linear_depend
 
 
-SUBROUTINE real_overlap_gam(lvec,AO_basis,s_mat)
+SUBROUTINE real_overlap_gam(num_l,index_l,AO_basis,s_mat)
   IMPLICIT NONE
 
-  REAL*8,DIMENSION(3),INTENT(IN)    ::  lvec
-  TYPE(AO_function),DIMENSION(:)    ::  AO_basis 
-  REAL*8,DIMENSION(:,:),INTENT(OUT) ::  s_mat
+	INTEGER, INTENT(IN) :: num_l
+  TYPE(AO_function), DIMENSION(:)     ::  AO_basis
+	INTEGER, DIMENSION(:,:), INTENT(IN) ::  index_l 
+  REAL*8, DIMENSION(:,:), INTENT(OUT) ::  s_mat
+  
+  INTEGER   ::  il,nu,mu,igauss,jgauss
 
-  INTEGER   ::  nu,mu,igauss,jgauss
-
+	REAL*8, DIMENSION(3) ::  lvec
   REAL*8,DIMENSION(3)  ::  dist_vec  !Vector between the respective centers of the basis functions of interest
   REAL*8               ::  dist      !Distance between the centers containing the basis functions of interest
   REAL*8               ::  screen
@@ -302,14 +305,18 @@ SUBROUTINE real_overlap_gam(lvec,AO_basis,s_mat)
 
   REAL*8, PARAMETER        ::  pi=3.141592653589793238462d0
 
-  !s_mat = 0.d0
-
+  s_mat = 0.d0
   !All basis function pairs are looped over, and the resulting overlap added into the array s_mat
   !The transpose symmetry of molecular overlap calculations can in general not be used here, since nu and mu are not necessarily in the same unit cell
   !SO s_mat(mu,nu) IS NOT THE SAME AS s_mat(nu,mu)
-  DO nu=1,s_dim
-     DO mu=1,s_dim
-
+  !$OMP PARALLEL DO DEFAULT(PRIVATE)
+	DO nu=1, s_dim
+    DO mu=1, s_dim
+      DO il=1, num_l
+				lvec = 0.d0
+				DO j=1, 3
+					lvec = lvec + a(:,j) * index_l(j,il)
+				ENDDO
         dist_vec = (AO_basis(mu)%pos + lvec) - AO_basis(nu)%pos
         dist_vec = -dist_vec
         !WRITE(6,*)'dist_vec',SNGL(dist_vec)
@@ -356,8 +363,10 @@ SUBROUTINE real_overlap_gam(lvec,AO_basis,s_mat)
         !WRITE(6,*)'real space overlap for basis functions',nu,mu
         !WRITE(6,'(D15.6)')s_mat(nu,mu)
         !WRITE(6,*)
-     ENDDO
+			ENDDO
+		ENDDO
   ENDDO
+	!$OMP END PARALLEL DO
 
 END SUBROUTINE real_overlap_gam
 
