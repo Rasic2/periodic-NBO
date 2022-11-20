@@ -1,3 +1,6 @@
 projection/*.o
 projection/*.mod
 projection/*.exe
+periodic_nbo/*.o
+periodic_nbo/*.mod
+periodic_nbo/*.exe

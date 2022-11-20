@@ -1,4 +1,5 @@
 MODULE PAW
+  USE OMP_lib
   USE projection_shared
   IMPLICIT NONE
   PRIVATE
@@ -45,6 +46,7 @@ SUBROUTINE PAW_proj_setup_omp(AO_basis,AO_l,PAW_overlap)
 
   TYPE(PAW_type),DIMENSION(5)  ::  d_PAW
 
+  INTEGER :: thread
 
   !Determine appropriate unit cells to use in real-space PAW-AO overlap calculations, and store indices in PAW_l.
   CALL setup_PAW_l(AO_l,PAW_l)
@@ -60,20 +62,25 @@ SUBROUTINE PAW_proj_setup_omp(AO_basis,AO_l,PAW_overlap)
   CALL setup_d_PAW(d_PAW)
 
   WRITE(6,*)'Calculating real space PAW overlaps'
+  WRITE(6,*) "Dimension: ", s_dim,npromax,SIZE(PAW_l,2)
 
+  !$OMP PARALLEL DEFAULT(PRIVATE) SHARED(nl,s_dim,n_atom,l_half,itypes,AO_basis,P,real_PAW_overlap,PAW_l,d_PAW) 
+  !$OMP DO SCHEDULE(STATIC)
   DO nu=1,s_dim
-     WRITE(6,*) 'nu = ', nu, ' start; tot = ', s_dim
+     thread = OMP_GET_THREAD_NUM()
+     !WRITE(6,*) 'nu = ', nu, ' start; tot = ', s_dim
      ipro = 1
 
+     !WRITE(6,*) 'l_half = ', l_half
      DO iatom=1,n_atom
         itype = itypes(iatom)
-
         on_site = .FALSE.
         IF( AO_basis(nu)%atom == iatom ) on_site=.TRUE. !Test to see if nu and ipro are centered on the same atom
 
         DO l=1,P(itype)%ldim
            ll=P(itype)%lps(l)
            DO m=1,2*ll+1
+              !WRITE(6,*) "m = ", m
               spher_harm_match = .FALSE.
               IF( on_site )THEN
                  IF( AO_basis(nu)%l == ll )THEN
@@ -81,29 +88,41 @@ SUBROUTINE PAW_proj_setup_omp(AO_basis,AO_l,PAW_overlap)
                  ENDIF
               ENDIF
 
+              !WRITE(6,*) "spher_harm_match = ", spher_harm_match
+
               IF( spher_harm_match )THEN
                  DO j=1,P(itype)%nmax
                     gauss = 0.d0
                     DO igauss=1,AO_basis(nu)%num_gauss
                        gauss = gauss + AO_basis(nu)%coeff(igauss)*AO_basis(nu)%norm(igauss)*EXP(-AO_basis(nu)%alpha(igauss)*P(itype)%r(j)**2)
                     ENDDO
+                    !WRITE(6, *) "gauss = ", gauss
                     real_PAW_overlap(nu,ipro,l_half) = real_PAW_overlap(nu,ipro,l_half) + gauss*P(itype)%wdiff(j,l)*P(itype)%r(j)**(2+ll)*P(itype)%si(j)
                  ENDDO
                  real_PAW_overlap(nu,ipro,l_half) = real_PAW_overlap(nu,ipro,l_half) * twosqrtpi / SQRT(DBLE(dble_factor(2*ll+1)))
               ENDIF
 
+              !WRITE(6,*) "real_PAW_overlap(nu,ipro,l_half) = ", nu, ipro, l_half, real_PAW_overlap(nu,ipro,l_half)
+              !WRITE(6,*) "ll = ", ll
+
               IF( ll == 0 )THEN
                  DO il=1,l_half-1
-                    !WRITE(6,*)'il',il
+                    !WRITE(6,*) 'il = ', il
                     CALL stype_PAW_offsite(AO_basis(nu),ipro,PAW_l(:,il),P(itype)%center_value(l,:),gauss)
+                    !WRITE(6,*) 'gauss = ', gauss
                     real_PAW_overlap(nu,ipro,il) = gauss  !P(itype)%center_value(l) * gauss
+                    !WRITE(6,*) 'PAW_l(:,nl+1-il) = ', thread, nl, nl+1-il, PAW_l(:,nl+1-il)
                     CALL stype_PAW_offsite(AO_basis(nu),ipro,PAW_l(:,nl+1-il),P(itype)%center_value(l,:),gauss)
                     real_PAW_overlap(nu,ipro,nl+1-il) =  gauss !P(itype)%center_value(l) * gauss
+                    !WRITE(6,*) 'gauss = ', gauss
                  ENDDO
                  IF( .NOT. on_site )THEN
                     CALL stype_PAW_offsite(AO_basis(nu),ipro,(/0,0,0/),P(itype)%center_value(l,:),gauss)
                     real_PAW_overlap(nu,ipro,l_half) = gauss !P(itype)%center_value(l) * gauss
                  ENDIF
+
+                 !WRITE(6,*) "real_PAW_overlap(nu,ipro,l_half) = ", nu, ipro, l_half, real_PAW_overlap(nu,ipro,l_half)
+              
               ELSEIF( ll == 1 )THEN
                  DO il=1,l_half-1
                     CALL ptype_PAW_offsite(AO_basis(nu),ipro,MODULO(m,3)+1,PAW_l(:,il),P(itype)%center_value(l,:),gauss)
@@ -127,13 +146,20 @@ SUBROUTINE PAW_proj_setup_omp(AO_basis,AO_l,PAW_overlap)
                     real_PAW_overlap(nu,ipro,l_half) = gauss
                  ENDIF
               ENDIF
-
+               
+              !WRITE(6,*) 'gauss = ', gauss
               ipro=ipro+1
 
            ENDDO
         ENDDO
      ENDDO
+     !WRITE(6,*) 'gauss = ', gauss
   ENDDO
+  !$OMP END DO
+  !$OMP END PARALLEL
+  
+  !WRITE(*,*) real_PAW_overlap(1,1,l_half)
+  !STOP
 
   !Perform a Bloch transform to get the necessary reciprocal space overlaps
   PAW_overlap = 0.d0

@@ -106,7 +106,7 @@ PROGRAM projection_main
 !$OMP DO SCHEDULE(STATIC)
   DO ik=1,nkpts
 
-     !WRITE(6,*)'kpt',ik,npl(ik)
+     WRITE(6,*)'kpt',ik,npl(ik)
 
      !!!!!!!!!!!!
      !!!!NOTE!!!!
@@ -125,7 +125,7 @@ PROGRAM projection_main
 
      DO nu=1,s_dim
         !First the overlap of each nu basis function with each planewave must be calculated
-        !WRITE(6,*) "nu = ", nu, "start; tot = ", s_dim
+        WRITE(6,*) "nu = ", nu, "start; tot = ", s_dim
         DO ig=1,npl(ik) 
            !WRITE(6,*)ig
            !CALL nu_g_overlap(AO_basis(nu),gk(:,ig,ik),AO_PW_overlap(nu,ig,ik))      !Overlap of AO with PW 
