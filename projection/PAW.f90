@@ -63,7 +63,7 @@ SUBROUTINE PAW_proj_setup(AO_basis,AO_l,PAW_overlap)
   !Set up PAW_types for d-type PAW. To be used for calculating their overlap with 2nd order Taylor series components.
   CALL setup_d_PAW(d_PAW)
 
-  !WRITE(6,*)'Calculating real space PAW overlaps'
+  WRITE(6,*)'Calculating real space PAW overlaps'
 
   !Here the overlap are finally obtained
   !Looping over the projector functions is not so straightforward (ipro=1,npro). So I use nested loops over atoms, augmentor channels, l-, m-angular quantum numbers
@@ -73,7 +73,7 @@ SUBROUTINE PAW_proj_setup(AO_basis,AO_l,PAW_overlap)
   !If the pair are centered on different atoms, a Taylor expansion of the AO function around the PAW center is used.
   !For overlap between unit cell all pairs are necessarily off-site and the same approximation will be used.
   DO nu=1,s_dim
-     !WRITE(6,*)'nu',nu
+     WRITE(6,*) 'nu = ', nu, ' start; tot = ', s_dim
      ipro = 1
 
      DO iatom=1,n_atom
@@ -213,8 +213,8 @@ SUBROUTINE PAW_proj_setup(AO_basis,AO_l,PAW_overlap)
   ENDDO
 
   CALL CPU_TIME(t2)
-  !WRITE(6,*)'Finished PAW overlap setup',SNGL(t2-t1)
-  !WRITE(6,*)
+  WRITE(6,*)'Finished PAW overlap setup',SNGL(t2-t1)
+  WRITE(6,*)
 
 END SUBROUTINE PAW_proj_setup
 

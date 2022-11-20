@@ -45,12 +45,11 @@ SUBROUTINE bloch_space_overlap(AO_basis,index_l)
 
   REAL*8, DIMENSION(s_dim)      ::  work_array  !I have no idea what this does, but it is required for the LAPACK SVD
 
-  INTEGER   ::  il,ik,j
+  INTEGER      ::  il,ik,j
+  INTEGER*2      ::  t1,t2
 
-  REAL*8    ::  t1,t2
-
-  !WRITE(6,*)'*** Bloch Overlap Calculation ***'
-  !WRITE(6,*)
+  WRITE(6,*)'*** Bloch Overlap Calculation ***'
+  WRITE(6,*)
 
   !The first step is to determine all real space unit cells that must be included in calculating overlaps
   !The indices of these unit cells (relative to a central 0,0,0) are then stored in index_l
@@ -72,7 +71,7 @@ SUBROUTINE bloch_space_overlap(AO_basis,index_l)
 
   !The real space overlaps will now be calculated for all relevant unit cells (l-vectors)
   !WRITE(6,*)'Calcualting Real Space Overlap Matrices'
-  CALL CPU_TIME(t1)
+  CALL SYSTEM_CLOCK(t1)
   IF( gamma_point )THEN
   
      WRITE(6,*)'gamma point overlap calculation'
@@ -88,7 +87,7 @@ SUBROUTINE bloch_space_overlap(AO_basis,index_l)
     !     ENDDO
         
     !  ENDDO
-		 CALL real_overlap_gam(num_l,index_l,AO_basis,s_mat_tilde)
+     CALL real_overlap_gam(num_l,index_l,AO_basis,s_mat_tilde)
      !DO j=1,s_dim
      !   WRITE(6,'(17f8.4)')s_mat_tilde(j,:)
      !ENDDO
@@ -118,10 +117,10 @@ SUBROUTINE bloch_space_overlap(AO_basis,index_l)
      ENDDO
 
   ENDIF
-  CALL CPU_TIME(t2)
+  CALL SYSTEM_CLOCK(t2)
 
-  !WRITE(6,*)'Finished real space overlap computations',SNGL(t2-t1)
-  !WRITE(6,*)
+  WRITE(6,*)'Finished real space overlap computations', (t2-t1)/1000.
+  WRITE(6,*)
 
   !Now the real-space overlap matrices will be processed to obtain the overlap matrix inverses at each k-point from the PW calculation.
   !The inversion is more straighforward to do in Bloch-space (independent at eack k-point), so the Bloch-transform is performed first
@@ -140,10 +139,11 @@ SUBROUTINE bloch_space_overlap(AO_basis,index_l)
      !This is a big array so get rid of it
      DEALLOCATE(per_s_mat)
   ENDIF
-  CALL CPU_TIME(t1)
 
-  !WRITE(6,*)'Finished Bloch transform of overlap matrice',SNGL(t1-t2)
-  !WRITE(6,*)
+  CALL SYSTEM_CLOCK(t1)
+
+  WRITE(6,*)'Finished Bloch transform of overlap matrice', (t1-t2)/1000.
+  WRITE(6,*)
 
   !Now the inverse of the overlap matrix at each k-point will be calcualted
   !This process is done independentyl at each k-point using LU decomposition
@@ -233,13 +233,10 @@ SUBROUTINE bloch_space_overlap(AO_basis,index_l)
 !$OMP END PARALLEL
 
 
-  CALL CPU_TIME(t2)
+  CALL SYSTEM_CLOCK(t2)
 
-  !WRITE(6,*)'Finished calculating overlap inverse matrices',SNGL(t2-t1)
-  !WRITE(6,*)
-
-
-
+  WRITE(6,*)'Finished calculating overlap inverse matrices', (t2-t1)/1000.
+  WRITE(6,*)
 
 END SUBROUTINE bloch_space_overlap
 
@@ -313,7 +310,7 @@ SUBROUTINE real_overlap_gam(num_l,index_l,AO_basis,s_mat)
       DO il=1, num_l
         lvec = 0.d0
         DO j=1, 3
-          lvec = lvec + a(:,j) * index_l(j,il)
+          lvec = lvec + a(:,j) * index_l(j,il) ! can removed to outter Rasic2@2022/11/20
         ENDDO
         dist_vec = (AO_basis(mu)%pos + lvec) - AO_basis(nu)%pos
         dist_vec = -dist_vec

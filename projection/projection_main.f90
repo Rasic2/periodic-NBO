@@ -85,9 +85,6 @@ PROGRAM projection_main
   !Calcualtes the overlap matrix inverse at each k-point, which is required for the projector operator.
   CALL bloch_space_overlap(AO_basis,index_l)
 
-!  !Now ready to perform actual projection.
-!  CALL CPU_TIME(t1)
-
   !If the PW calculation used PAW pseudopotentials, their contribution to the projection (Bloch-space overlap with AO basis) must be calculated
   !PAW_pseudo = .FALSE.
   IF( PAW_pseudo ) CALL PAW_proj_setup(AO_basis,index_l,PAW_overlap)
@@ -98,10 +95,10 @@ PROGRAM projection_main
 
   !Now the k-point dependent projections will be done.
   !For each kpt the projection is done independently
-  !WRITE(6,*)'Beginning of projections for each k-point'
+  WRITE(6,*)'Beginning of projections for each k-point'
 
   !Now ready to perform actual projection.
-  !CALL CPU_TIME(t1)
+  CALL CPU_TIME(t1)
 
 
 !$OMP PARALLEL DEFAULT(SHARED) PRIVATE(ik,nu,ig,ispin,gdotrnu)
@@ -128,7 +125,7 @@ PROGRAM projection_main
 
      DO nu=1,s_dim
         !First the overlap of each nu basis function with each planewave must be calculated
-        !WRITE(6,*)nu
+        !WRITE(6,*) "nu = ", nu, "start; tot = ", s_dim
         DO ig=1,npl(ik) 
            !WRITE(6,*)ig
            !CALL nu_g_overlap(AO_basis(nu),gk(:,ig,ik),AO_PW_overlap(nu,ig,ik))      !Overlap of AO with PW 
@@ -174,17 +171,14 @@ PROGRAM projection_main
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
-
   DEALLOCATE(proj_matrix,AO_PW_overlap)
   DEALLOCATE(pw_coeff)
   DEALLOCATE(bloch_s_inv)
   !PAUSE
 
-
-  !CALL CPU_TIME(t2)
-  !WRITE(6,*)'Completed projection',SNGL(t2-t1)
-  !WRITE(6,*)
-
+  CALL CPU_TIME(t2)
+  WRITE(6,*)'Completed projection',SNGL(t2-t1)
+  WRITE(6,*)
 
   !Calculate ovelrap matrices for projected bands and use these to quantify completeness of projection.
   CALL calc_spillover(proj_overlap,bloch_band_coeff)
@@ -254,8 +248,8 @@ PROGRAM projection_main
   WRITE(6,*)
 
   CALL CPU_TIME(t1)
-  !WRITE(6,*)'Time for density and Fock matrices',SNGL(t1-t2)
-  !WRITE(6,*)
+  WRITE(6,*)'Time for density and Fock matrices',SNGL(t1-t2)
+  WRITE(6,*)
 
   !Write out all information needed for NBO analysis
   !Formatting is specifc to NBO code of JRS and BDD
@@ -505,15 +499,6 @@ SUBROUTINE calc_spillover(r_mat,band_coeff)
 
   CLOSE(65)
 
-
-
-
 END SUBROUTINE calc_spillover
-
-
-
-
-
-
 
 END PROGRAM projection_main
