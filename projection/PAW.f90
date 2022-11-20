@@ -2,7 +2,7 @@ MODULE PAW
   USE projection_shared
   IMPLICIT NONE
   PRIVATE
-  PUBLIC PAW_proj_setup
+  PUBLIC PAW_proj_setup,PAW_proj_setup_omp
 
   REAL*8,PARAMETER   ::  PAW_screen=100.d0
   !COMPLEX*16, PARAMETER    ::  sqrt_neg_one=(0.d0,1.d0)
@@ -16,9 +16,140 @@ MODULE PAW
     LOGICAL              ::  second_order
   END TYPE  
 
-
-
 CONTAINS
+
+SUBROUTINE PAW_proj_setup_omp(AO_basis,AO_l,PAW_overlap)
+  USE rd_wavefunction
+  IMPLICIT NONE
+
+  TYPE(AO_function), DIMENSION(:)    ::  AO_basis
+  INTEGER,DIMENSION(:,:),INTENT(IN)  ::  AO_l
+  COMPLEX*16,ALLOCATABLE,INTENT(OUT)  :: PAW_overlap(:,:,:)
+
+  INTEGER,ALLOCATABLE   :: PAW_l(:,:)  !Set of unit cells to use for calculating periodic overlap.  Subset of those used for all AO overlap 
+  REAL*8,ALLOCATABLE   ::  real_PAW_overlap(:,:,:)  !Holds the overlap functions for each unit cell.  Will later be used to Bloch-space overlaps
+  INTEGER    ::  nl, l_half  !Index of central unit cell in 'PAW_l'. The unit cells are again mirrored across this point within 'PAW_l', just as in 'index_l'.
+
+  LOGICAL    ::  on_site, spher_harm_match  !For determining if PAW and AO are on the same atomic center and if so, if they have the same spherical harmonic
+  REAL*8     ::  gauss  !In all overlap calculations, this variable holds the AO contribution
+  !REAL*8     ::  ang_corr(4) !When on-site overlaps are calculated, the GTOs lack of separate spherical norm is accounted for.
+  INTEGER    ::  l,ll,m                !Terms for keeping track of spherical harmonic of PAW functions
+  INTEGER    ::  nu,ipro,iatom,itype   !Counters used in loops over AO and PAW augmenter functions
+  REAL*8     ::  bohr_kpt(3)
+
+  !COMPLEX*16  :: arg
+
+  INTEGER    ::  j,igauss,ik,il
+
+  REAL*8   ::  t1,t2,t3
+
+  TYPE(PAW_type),DIMENSION(5)  ::  d_PAW
+
+
+  !Determine appropriate unit cells to use in real-space PAW-AO overlap calculations, and store indices in PAW_l.
+  CALL setup_PAW_l(AO_l,PAW_l)
+  nl = SIZE(PAW_l,2)
+  l_half = (nl+1) / 2
+
+  ALLOCATE(real_PAW_overlap(s_dim,npromax,SIZE(PAW_l,2)), PAW_overlap(s_dim,npromax,nkpts))
+  real_PAW_overlap = 0.d0
+
+  CALL CPU_TIME(t1)
+
+  !Set up PAW_types for d-type PAW. To be used for calculating their overlap with 2nd order Taylor series components.
+  CALL setup_d_PAW(d_PAW)
+
+  WRITE(6,*)'Calculating real space PAW overlaps'
+
+  DO nu=1,s_dim
+     WRITE(6,*) 'nu = ', nu, ' start; tot = ', s_dim
+     ipro = 1
+
+     DO iatom=1,n_atom
+        itype = itypes(iatom)
+
+        on_site = .FALSE.
+        IF( AO_basis(nu)%atom == iatom ) on_site=.TRUE. !Test to see if nu and ipro are centered on the same atom
+
+        DO l=1,P(itype)%ldim
+           ll=P(itype)%lps(l)
+           DO m=1,2*ll+1
+              spher_harm_match = .FALSE.
+              IF( on_site )THEN
+                 IF( AO_basis(nu)%l == ll )THEN
+                    CALL spher_harm_test(spher_harm_match,ll,m,AO_basis(nu)%m)
+                 ENDIF
+              ENDIF
+
+              IF( spher_harm_match )THEN
+                 DO j=1,P(itype)%nmax
+                    gauss = 0.d0
+                    DO igauss=1,AO_basis(nu)%num_gauss
+                       gauss = gauss + AO_basis(nu)%coeff(igauss)*AO_basis(nu)%norm(igauss)*EXP(-AO_basis(nu)%alpha(igauss)*P(itype)%r(j)**2)
+                    ENDDO
+                    real_PAW_overlap(nu,ipro,l_half) = real_PAW_overlap(nu,ipro,l_half) + gauss*P(itype)%wdiff(j,l)*P(itype)%r(j)**(2+ll)*P(itype)%si(j)
+                 ENDDO
+                 real_PAW_overlap(nu,ipro,l_half) = real_PAW_overlap(nu,ipro,l_half) * twosqrtpi / SQRT(DBLE(dble_factor(2*ll+1)))
+              ENDIF
+
+              IF( ll == 0 )THEN
+                 DO il=1,l_half-1
+                    !WRITE(6,*)'il',il
+                    CALL stype_PAW_offsite(AO_basis(nu),ipro,PAW_l(:,il),P(itype)%center_value(l,:),gauss)
+                    real_PAW_overlap(nu,ipro,il) = gauss  !P(itype)%center_value(l) * gauss
+                    CALL stype_PAW_offsite(AO_basis(nu),ipro,PAW_l(:,nl+1-il),P(itype)%center_value(l,:),gauss)
+                    real_PAW_overlap(nu,ipro,nl+1-il) =  gauss !P(itype)%center_value(l) * gauss
+                 ENDDO
+                 IF( .NOT. on_site )THEN
+                    CALL stype_PAW_offsite(AO_basis(nu),ipro,(/0,0,0/),P(itype)%center_value(l,:),gauss)
+                    real_PAW_overlap(nu,ipro,l_half) = gauss !P(itype)%center_value(l) * gauss
+                 ENDIF
+              ELSEIF( ll == 1 )THEN
+                 DO il=1,l_half-1
+                    CALL ptype_PAW_offsite(AO_basis(nu),ipro,MODULO(m,3)+1,PAW_l(:,il),P(itype)%center_value(l,:),gauss)
+                    real_PAW_overlap(nu,ipro,il) = gauss  !P(itype)%center_value(l) * gauss
+                    CALL ptype_PAW_offsite(AO_basis(nu),ipro,MODULO(m,3)+1,PAW_l(:,nl+1-il),P(itype)%center_value(l,:),gauss)
+                    real_PAW_overlap(nu,ipro,nl+1-il) = gauss ! P(itype)%center_value(l) * gauss
+                 ENDDO
+                 IF( .NOT. on_site )THEN
+                    CALL ptype_PAW_offsite(AO_basis(nu),ipro,MODULO(m,3)+1,(/0,0,0/),P(itype)%center_value(l,:),gauss)
+                    real_PAW_overlap(nu,ipro,l_half) = gauss !P(itype)%center_value(l) * gauss
+                 ENDIF
+              ELSEIF( ll == 2 )THEN
+                 DO il=1,l_half-1
+                    CALL dtype_PAW_offsite(AO_basis(nu),ipro,PAW_l(:,il),d_PAW(m),P(itype)%center_value(l,:),gauss)
+                    real_PAW_overlap(nu,ipro,il) = gauss
+                    CALL dtype_PAW_offsite(AO_basis(nu),ipro,PAW_l(:,nl+1-il),d_PAW(m),P(itype)%center_value(l,:),gauss) 
+                    real_PAW_overlap(nu,ipro,nl+1-il) = gauss
+                 ENDDO
+                 IF( .NOT. on_site )THEN
+                    CALL dtype_PAW_offsite(AO_basis(nu),ipro,(/0,0,0/),d_PAW(m),P(itype)%center_value(l,:),gauss)
+                    real_PAW_overlap(nu,ipro,l_half) = gauss
+                 ENDIF
+              ENDIF
+
+              ipro=ipro+1
+
+           ENDDO
+        ENDDO
+     ENDDO
+  ENDDO
+
+  !Perform a Bloch transform to get the necessary reciprocal space overlaps
+  PAW_overlap = 0.d0
+  CALL real_to_bloch(real_PAW_overlap,PAW_overlap,PAW_l,-kpt)
+  DO ik=1,nkpts
+     bohr_kpt = kpt(1,ik)*b(:,1) + kpt(2,ik)*b(:,2) + kpt(3,ik)*b(:,3)
+     DO ipro=1,npromax
+        PAW_overlap(:,ipro,ik) = PAW_overlap(:,ipro,ik) * EXP(sqrt_neg_one*DOT_PRODUCT(PAW_pos(ipro,:),bohr_kpt))
+     ENDDO
+  ENDDO
+
+  CALL CPU_TIME(t2)
+  WRITE(6,*)'Finished PAW overlap setup',SNGL(t2-t1)
+  WRITE(6,*)
+
+END SUBROUTINE PAW_proj_setup_omp
 
 !This subroutine obtains the real-space overlap of the AO basis functions and PAW-augmenters over a sufficient number of unit cells
 !Bloch-space overlap is needed for the projection, which can be obtained by linear transform of periodic real space overlaps
@@ -80,7 +211,7 @@ SUBROUTINE PAW_proj_setup(AO_basis,AO_l,PAW_overlap)
         itype = itypes(iatom)
 
         on_site = .FALSE.
-        IF( AO_basis(nu)%atom == iatom )on_site=.TRUE. !Test to see if nu and ipro are centered on the same atom
+        IF( AO_basis(nu)%atom == iatom ) on_site=.TRUE. !Test to see if nu and ipro are centered on the same atom
 
         DO l=1,P(itype)%ldim
 

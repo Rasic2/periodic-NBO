@@ -87,7 +87,7 @@ PROGRAM projection_main
 
   !If the PW calculation used PAW pseudopotentials, their contribution to the projection (Bloch-space overlap with AO basis) must be calculated
   !PAW_pseudo = .FALSE.
-  IF( PAW_pseudo ) CALL PAW_proj_setup(AO_basis,index_l,PAW_overlap)
+  IF( PAW_pseudo ) CALL PAW_proj_setup_omp(AO_basis,index_l,PAW_overlap)
 
   !ALLOCATE(bloch_band_coeff(s_dim,nbands,nkpts,nspins),proj_matrix(s_dim,nbands,nkpts),AO_PW_overlap(s_dim,nplmax,nkpts))
   ALLOCATE(bloch_band_coeff(s_dim,nbands,nkpts,nspins),proj_matrix(s_dim,nbands,nkpts,nspins),AO_PW_overlap(nplmax,nkpts))
