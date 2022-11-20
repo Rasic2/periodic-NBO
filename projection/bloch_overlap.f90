@@ -75,7 +75,7 @@ SUBROUTINE bloch_space_overlap(AO_basis,index_l)
   CALL CPU_TIME(t1)
   IF( gamma_point )THEN
   
-     !WRITE(6,*)'gamma point overlap calculation'
+     WRITE(6,*)'gamma point overlap calculation'
      
      !For a gamma point calculation, it is impossible to recover real space information in the back transform 
      !Therfore it is unnecessary to calculate all the overlap matrices separately since they will all be lost once you go to k-space
@@ -86,7 +86,7 @@ SUBROUTINE bloch_space_overlap(AO_basis,index_l)
         DO j=1,3
            lvec = lvec + a(:,j)*index_l(j,il)
         ENDDO
-        CALL real_overlap(lvec,AO_basis,s_mat_tilde)
+        CALL real_overlap_gam(lvec,AO_basis,s_mat_tilde)
      ENDDO
      !DO j=1,s_dim
      !   WRITE(6,'(17f8.4)')s_mat_tilde(j,:)
@@ -279,6 +279,87 @@ SUBROUTINE check_linear_depend(input_mat,eig_min)
 
 END SUBROUTINE check_linear_depend
 
+
+SUBROUTINE real_overlap_gam(lvec,AO_basis,s_mat)
+  IMPLICIT NONE
+
+  REAL*8,DIMENSION(3),INTENT(IN)    ::  lvec
+  TYPE(AO_function),DIMENSION(:)    ::  AO_basis 
+  REAL*8,DIMENSION(:,:),INTENT(OUT) ::  s_mat
+
+  INTEGER   ::  nu,mu,igauss,jgauss
+
+  REAL*8,DIMENSION(3)  ::  dist_vec  !Vector between the respective centers of the basis functions of interest
+  REAL*8               ::  dist      !Distance between the centers containing the basis functions of interest
+  REAL*8               ::  screen
+  REAL*8,PARAMETER     ::  overlap_screen = 45.d0
+  REAL*8,DIMENSION(3)  ::  PA,PB  !Vectors from each nuclei to the center of the resulting gaussian
+  REAL*8               ::  a1,a2  !Shorthand for the exponents of the basis functions of interest
+  REAL*8, DIMENSION(3) ::  sigma  !Vector containg the 'sigma function' described in the Clementi and Davis paper
+  REAL*8               ::  integral,cartesian  !Placeholders for 1) S-type overlap 2)factor from sigma functions that account for higher order harmonics
+
+  INTEGER   :: i,j,k
+
+  REAL*8, PARAMETER        ::  pi=3.141592653589793238462d0
+
+  !s_mat = 0.d0
+
+  !All basis function pairs are looped over, and the resulting overlap added into the array s_mat
+  !The transpose symmetry of molecular overlap calculations can in general not be used here, since nu and mu are not necessarily in the same unit cell
+  !SO s_mat(mu,nu) IS NOT THE SAME AS s_mat(nu,mu)
+  DO nu=1,s_dim
+     DO mu=1,s_dim
+
+        dist_vec = (AO_basis(mu)%pos + lvec) - AO_basis(nu)%pos
+        dist_vec = -dist_vec
+        !WRITE(6,*)'dist_vec',SNGL(dist_vec)
+        dist = DOT_PRODUCT(dist_vec,dist_vec)
+        !WRITE(6,*)dist
+
+        !Overlap is defined for each Gaussian function, but each basis function is a summation of Gaussians
+        !Thus, for all basis function pairs the overlap is really a sum over all possible pairs of Gaussians
+        DO igauss=1,AO_basis(nu)%num_gauss
+           !DO jgauss=AO_basis(mu)%num_gauss,1,-1  !This loops is 'up' the alpha array ( increasing exponents ) for screening purposes
+           DO jgauss=1,AO_basis(mu)%num_gauss
+
+              !The full AO_basis notation is cumbersome to use and exponents are repeatedly used.  a1 and a2 are used for aestheic reasons.
+              a1 = AO_basis(nu)%alpha(igauss)
+              a2 = AO_basis(mu)%alpha(jgauss)
+
+              screen = dist*(a1*a2)/(a1+a2)
+              IF( screen > overlap_screen )GOTO 300
+
+              !This expression is the integral of the gaussian that results from the intersection of the particular Gaussian components of nu & mu
+              !This is the complete overlap expression for two S-type gaussians.  But higher order harmonics complicate the calculation
+              integral = AO_basis(nu)%norm(igauss) * AO_basis(mu)%norm(jgauss) * (pi/(a1+a2))**(1.5) * EXP( -screen )
+
+              !These vectors are the distance from each respective atomic center to the location of the Gaussian that results from the intersection 
+              ! of the two particular Gaussians described by a1 and a2
+              PA = (- a2 / (a1 + a2)) * dist_vec
+              PB = ( a1/ (a1 + a2)) * dist_vec
+
+
+              !The overlap formulas used all depend on the use of Cartesian Gaussian type orbitals
+              !The true spherical harmonic Gaussians are then formed as linear combinations of these.
+              !Thus the overlap for a particular Spherical gaussian is a linear combination of overlaps for cartesian GTO's
+              !The linear combinations used come from: Schlegel and Frisch, Intl. Journal of Quant. Chem.; 54, 83-87, (1995)
+              !The 'SIGMA' function is calculated for all Cartesian-GTO's that make up each Spherical-GTO contained in nu & mu
+              CALL cartesian_component(AO_basis(nu),AO_basis(mu),PA,PB,a1,a2,cartesian)
+
+              s_mat(nu,mu) = s_mat(nu,mu) + AO_basis(nu)%coeff(igauss)*AO_basis(mu)%coeff(jgauss)*cartesian*integral
+
+300           CONTINUE
+              !WRITE(6,*)
+           ENDDO
+        ENDDO
+
+        !WRITE(6,*)'real space overlap for basis functions',nu,mu
+        !WRITE(6,'(D15.6)')s_mat(nu,mu)
+        !WRITE(6,*)
+     ENDDO
+  ENDDO
+
+END SUBROUTINE real_overlap_gam
 
 !This subroutine calculates the overlap between GTO basis functions in two unit cells, separated by 'lvec'
 !Upon exit the variable 's_mat' contains the overlap matrix.
