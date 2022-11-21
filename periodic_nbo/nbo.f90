@@ -446,6 +446,7 @@ MODULE nbo
       WRITE(6,*)'Total occupancy of Non-Lewis type valence NBOs ',SNGL(nl_occ)
       WRITE(6,*)'Total occupancy of Rydberg NBOs                ',SNGL(ryd_occ)
       WRITE(6,*)'Total valence occupancy                        ',SNGL(val_occ+nl_occ+ryd_occ)
+      WRITE(6,*)'Total number of NBOs                           ',SNGL(nnbo_out)
       WRITE(6,*)
 
       !STOP
