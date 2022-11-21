@@ -407,8 +407,6 @@ PROGRAM nbo_main
   !This section of the code is for visualization purposes.
   IF( .NOT.visualize )GOTO 90
 
-
-
   WRITE(6,*)
   WRITE(6,*)
   WRITE(6,'(A)')' ******************************* '
@@ -423,7 +421,6 @@ PROGRAM nbo_main
   WRITE(6,'(A10,I5,A8,I5)')'Start:  ',vis_control%vis_start,'End:  ',vis_control%vis_end
   WRITE(6,*)
 
-
   ALLOCATE(ao_coeff(nbasis,nnbo(1),ng,nspins))
 
   !Convert the nbo orbitals with coeff in the NAO basis into coeff in the AO basis for visualization.
@@ -434,11 +431,11 @@ PROGRAM nbo_main
      ENDDO
   ENDDO
 
+  WRITE(6,*) AO_basis
+  STOP
+
   CALL NBO_visualization(AO_basis,ao_coeff,atom_pos,indexg,latt_vec,iatnum,vis_control)
 
- 
-  !CALL NBO_visualization
- 
   STOP
 
   !Now actually write out a file to be read in for use in visualization
@@ -502,8 +499,6 @@ PROGRAM nbo_main
   CLOSE(95)
 
   WRITE(6,*)'done with writing vis output'
-
-
 
 90  CONTINUE
 
@@ -855,7 +850,7 @@ CONTAINS
       !First read in the comment about this datas purpose
       READ(10,*)comment
 
-      !WRITE(6,*)'reading basis set info'
+      WRITE(6,*)'reading basis set info'
 
       DO ibasis=1,nbasis
          READ(10,*)AO_basis(ibasis)%num_gauss
@@ -871,8 +866,6 @@ CONTAINS
          ENDDO
          READ(10,*)
       ENDDO
-
-
 
       !correct for the fact we (maybe) just read the alpha density
       rhok=rhok * DBLE(3-nspins)
@@ -916,7 +909,4 @@ CONTAINS
 
     END SUBROUTINE read_input_file
 
-
 END PROGRAM nbo_main
-
-

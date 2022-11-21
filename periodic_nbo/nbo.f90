@@ -487,7 +487,7 @@ MODULE nbo
       !First do a search for "one-center" bonds (lone pairs)
       ig=1
       DO iatom=1,inp%natom
-         WRITE(6,*)'loop over atomic center',iatom
+         !WRITE(6,*)'loop over atomic center',iatom
          ifirst=inp%ibasismap(iatom)
          ilast=inp%ibasismap(iatom+1)-1
          isize=ilast-ifirst+1
@@ -528,10 +528,11 @@ MODULE nbo
       ENDDO
 
 
-      WRITE(6,*)'made it to deleting the lone pair density'
+      WRITE(6,*)'made it to deleting the lone pair density, nbondorlp = ', nbondorlp
       !Next project the "one-center bond" contributions from the density matrix
-      P=matiden(SIZE(inp%rho0,1))
+      P=matiden(SIZE(inp%rho0,1)) !unit matrix
       DO ibondorlp=1,nbondorlp
+         WRITE(6,*) 'ibondorlp = ', ibondorlp, 'nbondorlp = ', nbondorlp
          iatom=lpairs(ibondorlp)%iatom
          ig=lpairs(ibondorlp)%ig
          inho=lpairs(ibondorlp)%inho
@@ -560,7 +561,7 @@ MODULE nbo
          !   PRINT *, 'Removing LP from atom',iatom
          !ENDIF
       ENDDO
-      !PRINT *
+      !STOP
 
       !inp%rho0(:,:,1) = MATMUL(P,(MATMUL(inp%rho0(:,:,1),P)))
       CALL DGEMM_F95(inp%rho0(:,:,1,ispin),P,Pdummy,'N','N',1.d0,0.d0)
