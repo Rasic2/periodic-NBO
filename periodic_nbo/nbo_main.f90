@@ -47,7 +47,6 @@ PROGRAM nbo_main
   !A structure which encapsulates all above information
   TYPE(nbo_input) :: inp
 
-
   REAL*8,ALLOCATABLE    ::  output_occ(:)
   REAL*8                ::  energy_diff, occ_diff,perturb,occ_factor
 
@@ -59,43 +58,12 @@ PROGRAM nbo_main
   REAL*8     :: ti,tf
   REAL*8     :: t1,t2
 
-
-  !The following variables are only passed into the NBO code for the purpose of being output for visualization.
-  !Therefore I will not make them targets.
-  !Any modification to utilize the atom positions should make them into targets and include a pointer in the 'inp' type contained in nbo_shared.f90
-!  TYPE AO_function
-!     REAL*8, ALLOCATABLE, DIMENSION(:) :: norm, alpha, coeff
-!     INTEGER                :: num_gauss
-!     !INTEGER, DIMENSION(3)  :: lmn
-!     INTEGER                :: atom
-!     REAL*8, DIMENSION(3)   :: pos
-!     INTEGER                :: level  !Keeps track of what basis functions share the same sets of exponents, on the same atom.
-!     INTEGER                :: l,m     !l- and m-quantum numbers of basis function.  m actually runs from 0,2*l+1 and is onyl and index.
-!
-!     INTEGER                :: ncart
-!     INTEGER,ALLOCATABLE    :: cart_mat(:,:)
-!     REAL*8,ALLOCATABLE     :: cart_coeff(:)
-!
-!  END TYPE AO_function
-
+  !Variables for visualization
   TYPE(AO_function),ALLOCATABLE  ::  AO_basis(:)  !Info on all basis functions
-
   REAL*8, ALLOCATABLE    ::  atom_pos(:,:)   !Atomic positions within the central unit cell (in bohr?)
   REAL*8,DIMENSION(3,3)  ::  latt_vec        !Real space unit cell vectors (in bohr?)
-
-
-!  TYPE vis_cont_struct
-!     INTEGER               ::  vis_start,vis_end
-!     INTEGER,DIMENSION(3)  ::  mesh
-!     INTEGER,DIMENSION(3)  ::  box_int
-!     REAL*8                ::  origin_fact
-!     LOGICAL               ::  density
-!  END TYPE vis_cont_struct
-
   TYPE(vis_cont_struct)  :: vis_control
-
   REAL*8,ALLOCATABLE  ::  ao_coeff(:,:,:,:)
-
   !End of visualization variables
 
 
@@ -110,8 +78,6 @@ PROGRAM nbo_main
 !  INTEGER  ::  mesh(3),box_int(3)
 !  REAL*8   ::  origin_fact
 !  LOGICAL  ::  write_density !Control whether density or wavefunctions will be written
-
-
 
   !Temporary variables
   INTEGER :: ig,inbo,ik,i,j,k,ispin,nu
@@ -357,7 +323,6 @@ PROGRAM nbo_main
 
 60  CONTINUE
 
-
   WRITE(6,'(A)')' ******************************* '
   WRITE(6,'(A)')' ****** SEARCH PARAMETERS ****** '
   WRITE(6,'(A)')' ******************************* '
@@ -370,7 +335,6 @@ PROGRAM nbo_main
   WRITE(6,'(F5.2,A40)')nbo_2c_thresh*DBLE(3-nspins),'  #Occupancy cutoff for two-center NBOs'
   WRITE(6,*)
   WRITE(6,*)
-
 
   ALLOCATE(rho_dummy(nbasis,nbasis,ng,nspins))
   rho_dummy = inp%rho0
@@ -385,7 +349,6 @@ PROGRAM nbo_main
   CALL CPU_TIME(tf)
   WRITE(6,*)'total time for NBO analysis',SNGL(tf-ti)
 
-
   !Check to make the sure a full number of NBO's was found.
   !Basically did a bond get rejected after orthogonalization.
   !A square matrix is necessary for the unitary transforms.
@@ -395,17 +358,13 @@ PROGRAM nbo_main
      ENDIF
   ENDDO
 
-
-
-
   !!!!!!!!!!!!!!!!!
   !This is STOP #1!
   !!!!!!!!!!!!!!!!!
   !STOP
 
-
   !This section of the code is for visualization purposes.
-  IF( .NOT.visualize )GOTO 90
+  IF( .NOT.visualize ) GOTO 90
 
   WRITE(6,*)
   WRITE(6,*)
@@ -426,14 +385,12 @@ PROGRAM nbo_main
   !Convert the nbo orbitals with coeff in the NAO basis into coeff in the AO basis for visualization.
   DO ispin=1,nspins
      DO inbo=1,nnbo(ispin)
-        !output(ispin)%coeff(:,inbo,:) = periodic_matvecmul(transform,output(ispin)%coeff(:,inbo,:))
         ao_coeff(:,inbo,:,ispin) = periodic_matvecmul(transform,output(ispin)%coeff(:,inbo,:))
      ENDDO
   ENDDO
 
-  WRITE(6,*) AO_basis
-  STOP
-
+  !AO_basis,atom_pos,indexg,latt_vec,iatnum: obtained from read_input_file
+  !vis_control: nbo.config
   CALL NBO_visualization(AO_basis,ao_coeff,atom_pos,indexg,latt_vec,iatnum,vis_control)
 
   STOP
@@ -687,10 +644,9 @@ CONTAINS
 
 
 30    CONTINUE
-      !WRITE(6,*)'real start boolean   ',real_init
+      WRITE(6,*)'real start boolean   ',real_init
 
-
-      IF( real_init )STOP 'NBO code is no longer compatible with Gaussian output'
+      IF( real_init ) STOP 'NBO code is no longer compatible with Gaussian output'
 
       ALLOCATE(ishellmap(nbasis))
       ALLOCATE(ilmap(nbasis))
@@ -715,21 +671,21 @@ CONTAINS
          READ(10,*) iatval
       ENDIF
 
-      !WRITE(6,*)'start of new read'
+      WRITE(6,*)'start of new read'
 
       !Read in structural information
       DO im=1,3 !im is just a dummy variable in this context
          READ(10,*)latt_vec(:,im)
       ENDDO
 
-      !WRITE(6,*)'now reading positions'
+      WRITE(6,*)'now reading positions'
 
       ALLOCATE(atom_pos(3,natom))
       DO im=1,natom !im is just a dummy variable in this context
          READ(10,*)atom_pos(:,im)
       ENDDO
 
-      !WRITE(6,*)'made it to reading g-vectors'
+      WRITE(6,*)'made it to reading g-vectors'
 
       !Read in information about real space g-vectors.
       !These will only be for nearest neighbor cells where bonds we will be searched for
@@ -743,7 +699,6 @@ CONTAINS
          nk=nkx*nky*nkz
       ENDIF
 
-
       ALLOCATE(rho0(nbasis,nbasis,ng,nspins))
       ALLOCATE(s0(nbasis,nbasis,ng))
       ALLOCATE(fock0(nbasis,nbasis,ng,nspins))
@@ -753,59 +708,12 @@ CONTAINS
       ALLOCATE(sk(nbasis,nbasis,nk))
       ALLOCATE(fockk(nbasis,nbasis,nk,nspins))
 
-      !WRITE(6,*)'allocated everything'
+      WRITE(6,*)'allocated everything'
 
       IF( real_init )THEN
-
           STOP 'Need to resetup matrix input for real space initialization systems'
-
-
-!         CALL read_real_triangular(10,nbasis,s0(:,:,1),s0(:,:,1))
-!         DO ig=2,ng,2
-!            CALL read_real_triangular(10,nbasis,s0(:,:,ig),s0(:,:,ig+1))
-!            CALL read_real_triangular(10,nbasis,s0(:,:,ig+1),s0(:,:,ig))
-!         ENDDO
-!         CALL read_real_triangular(10,nbasis,rho0(:,:,1),rho0(:,:,1))
-!         DO ig=2,ng,2
-!            CALL read_real_triangular(10,nbasis,rho0(:,:,ig),rho0(:,:,ig+1))
-!            CALL read_real_triangular(10,nbasis,rho0(:,:,ig+1),rho0(:,:,ig))
-!         ENDDO
-!
-!         OPEN(12,file='NBODATA.54')
-!         DO j=1,3
-!            READ(12,*)
-!         ENDDO
-!         fock0=0.d0
-!         CALL read_real_triangular(12,nbasis,fock0(:,:,1),fock0(:,:,1))
-!         !WRITE(6,*)'test of read in fock matrix'
-!         !DO ibasis=1,nbasis
-!         !   WRITE(6,'(27F10.5)')fock0(ibasis,:,1)
-!         !   WRITE(6,*)
-!         !ENDDO
-!         
-!         CLOSE(12)
-!
-!         !STOP 'Fock matrix input has not been implemented for real space start'
-!
-!         DO ig=1,ng
-!            num_elec=num_elec + mattrace(MATMUL(rho0(:,:,ig),TRANSPOSE(s0(:,:,ig))))
-!         ENDDO
-!         WRITE(6,*)'number of initial electrons in real space',2.d0*num_elec
-!         num_elec = 0.d0
-!         DO ig=1,ng
-!            num_elec=num_elec + mattrace(MATMUL(rho0(:,:,ig),TRANSPOSE(fock0(:,:,ig))))
-!         ENDDO
-!         WRITE(6,*)'initial real space energy sum',2.d0*num_elec
-!
-!         sk=0.d0
-!         rhok=0.d0
-!         sk=periodic_matbloch(s0,nkx,nky,nkz)
-!         rhok=periodic_matbloch(rho0,nkx,nky,nkz)
-!         fockk=periodic_matbloch(fock0,nkx,nky,nkz)
-
       ELSE
-
-         !WRITE(6,*)'reading in k-pts'
+         WRITE(6,*)'reading in k-pts'
 
          !Read in k-vectors indexing the overlap and density matrices.
          !These are in the same order as the matrices 
@@ -816,7 +724,7 @@ CONTAINS
 
          READ(10,*)NBO_mat_fn
 
-         !WRITE(6,*)'Input matrices will be read in from',NBO_mat_fn
+         WRITE(6,*)'Input matrices will be read in from',NBO_mat_fn
 
          OPEN(66,file=NBO_mat_fn,FORM='UNFORMATTED')
 
