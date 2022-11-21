@@ -65,7 +65,6 @@ PROGRAM nbo_main
   REAL*8,DIMENSION(3,3)  ::  latt_vec        !Real space unit cell vectors (in bohr?)
   TYPE(vis_cont_struct)  :: vis_control
   REAL*8,ALLOCATABLE  ::  ao_coeff(:,:,:,:)
-  REAL*8 :: coeff_value
   !End of visualization variables
 
   !Checkpoint file information
