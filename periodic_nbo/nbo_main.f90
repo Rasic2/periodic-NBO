@@ -57,6 +57,7 @@ PROGRAM nbo_main
   COMPLEX*16                ::   energy_sum, occ_sum  !For testing bloch-space matrices in NBO basis
 
   REAL*8     :: ti,tf
+  REAL*8     :: t1,t2
 
 
   !The following variables are only passed into the NBO code for the purpose of being output for visualization.
@@ -150,9 +151,13 @@ PROGRAM nbo_main
 20   write_checkpoint=.TRUE.
 
 30 ENDIF
-
+  
   !Check number of electrons and do transform to an orthogonal basis
+  WRITE(6,*) 'Start calc_nelec'
+  CALL CPU_TIME(t1)
   CALL calc_nelec(inp,checkpoint_exists)
+  CALL CPU_TIME(t2)
+  WRITE(6,*) 'total time for calc_nelec ', SNGL(t2-t1)
 
   IF (.NOT.checkpoint_exists) THEN
      !Convert to a symmetrically orthoganlized basis, weighted by the occupations of the pre-NAOs.
@@ -170,7 +175,10 @@ PROGRAM nbo_main
 
   !Now get down to buisiness; first output the NAOs (this is easy, since we are already in the
   !NAO basis due to the prior transformations
+  CALL CPU_TIME(t1)
   CALL do_nao(inp)
+  CALL CPU_TIME(t2)
+  WRITE(6,*) 'total time for do_nao ', SNGL(t2-t1)
   
   !***This has been removed so that all one center orbitals are treated as lone pairs.
   !***The lone pairs were not actually projected, but acutally depleted. Less rigorous
@@ -284,6 +292,14 @@ PROGRAM nbo_main
         STOP
      ENDIF
 
+     IF( vis_control%vis_end .GT. 999 )THEN
+        WRITE(6,*)'The code is not set up to write out the denisty for more than 999 NBOs'
+        WRITE(6,*)'Vis_end:   ',vis_control%vis_end
+        WRITE(6,*)'# of NBOs: ',nbasis
+        WRITE(6,*)'Please check nbo.config'
+        STOP
+     ENDIF
+
      IF( vis_control%vis_end.LT.vis_control%vis_start )THEN
         WRITE(6,*)'Start of visualization range is larger than end point'
         WRITE(6,*)'Vis_start: ',vis_control%vis_start
@@ -363,6 +379,7 @@ PROGRAM nbo_main
   !ALLOCATE(bond_out(inp%nspins),lp_out(inp%nspins),ryd_out(inp%nspins))
   ALLOCATE(output(nspins),nnbo(nspins))
   DO ispin=1,nspins
+     WRITE(6,*)'ispin = ',ispin
      CALL do_nbo(inp,ispin,nnbo(ispin))
   ENDDO
   CALL CPU_TIME(tf)

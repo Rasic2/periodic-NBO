@@ -64,7 +64,7 @@ MODULE nbo
 
       INTEGER :: j
 
-      !WRITE(6,*)'inside of the do_nbo subroutine'
+      WRITE(6,*)'inside of the do_nbo subroutine'
 
       !Find the LARGEST number of basis functions per atom; twice that is the size of the rhoat
       !matrices we need for our 2 atom NBO search
@@ -101,11 +101,10 @@ MODULE nbo
 
       lp_cutoff = nbo_1c_thresh * DBLE(3-inp%nspins)
       bond_cutoff = nbo_2c_thresh * DBLE(3-inp%nspins)
-      !WRITE(6,*)'lone pair and bond cutoffs',lp_cutoff,bond_cutoff
-      !WRITE(6,*)
+      WRITE(6,*)'lone pair and bond cutoffs',lp_cutoff,bond_cutoff
+      WRITE(6,*)
 
-
-      !WRITE(6,*)'got to calling the 1 center search'
+      WRITE(6,*)'got to calling the 1 center search'
       CALL do_1c_search(inp,lpairs,nnho,nlpair,rhoat,nbo_coeff,nbo_occ,nho_coeff,ispin)
       WRITE(6,*)"Number of non-bonding NBO's",nlpair
       CALL do_2c_search(inp,bonds,nnho,nbond,rhoat,nbo_coeff,nbo_occ,nho_coeff,ispin)
@@ -116,7 +115,7 @@ MODULE nbo
       !of the resonance structures in hypervalent / ionic structures.  See PCCP 10, 5207 (2008) for details.
       IF (orthogonalize_hybrids) CALL do_orthogonalize_hybrids(inp,nho_coeff,nnho,.TRUE.,nnho_init)
 
-      !WRITE(6,*)'finished orthogonalizing hybrids'
+      WRITE(6,*)'finished orthogonalizing hybrids'
 
       !The factor of 2 in bond_coeff is to account for anti bonds
       !ALLOCATE(bond_out(ispin)%coeff(inp%nbasis,2*bond
@@ -488,7 +487,7 @@ MODULE nbo
       !First do a search for "one-center" bonds (lone pairs)
       ig=1
       DO iatom=1,inp%natom
-         !WRITE(6,*)'loop over atomic center',iatom
+         WRITE(6,*)'loop over atomic center',iatom
          ifirst=inp%ibasismap(iatom)
          ilast=inp%ibasismap(iatom+1)-1
          isize=ilast-ifirst+1
@@ -529,7 +528,7 @@ MODULE nbo
       ENDDO
 
 
-      !WRITE(6,*)'made it to deleting the lone pair density'
+      WRITE(6,*)'made it to deleting the lone pair density'
       !Next project the "one-center bond" contributions from the density matrix
       P=matiden(SIZE(inp%rho0,1))
       DO ibondorlp=1,nbondorlp

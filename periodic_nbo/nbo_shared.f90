@@ -157,14 +157,18 @@ MODULE nbo_shared
     TYPE(nbo_input) :: inp
     LOGICAL :: is_orthog !true if we are already in an orthogonal NAO basis (i.e. we read the NAOs from a checkpoint file)
 
-    COMPLEX*16,DIMENSION(SIZE(inp%rhok,1),SIZE(inp%rhok,1))  ::  nelec_dummy
+    !COMPLEX*16,DIMENSION(SIZE(inp%rhok,1),SIZE(inp%rhok,1))  ::  nelec_dummy
+    COMPLEX*16,ALLOCATABLE  ::  nelec_dummy(:,:)
     INTEGER :: ik, nk, ispin
     REAL*8 :: nelec, nenergy
-    
+
     nk=inp%nk
     nelec=0.d0
     nenergy=0.d0
 
+    !$OMP PARALLEL DEFAULT(PRIVATE) SHARED(inp,nk) REDUCTION(+:nelec,nenergy)
+    ALLOCATE(nelec_dummy(SIZE(inp%rhok,1),SIZE(inp%rhok,1))) 
+    !$OMP DO
     DO ispin=1,inp%nspins
        DO ik=1,nk
           CALL ZGEMM_F95(inp%rhok(:,:,ik,ispin),inp%sk(:,:,ik),nelec_dummy,'N','C',(1.d0,0.d0),(0.d0,0.d0))
@@ -173,10 +177,14 @@ MODULE nbo_shared
           nenergy=nenergy+inp%kpt_wt(ik)*mattrace(nelec_dummy)
        ENDDO
     ENDDO
+    !$OMP END DO
+    DEALLOCATE(nelec_dummy)
+    !$OMP END PARALLEL
+
     PRINT *, 'Total number of elec. from input Bloch space matrices: ', nelec
     PRINT *, 'Total energy average from input Bloch space matrices:  ', nenergy
     PRINT *
-
+    !STOP
   END SUBROUTINE calc_nelec
 
   !
