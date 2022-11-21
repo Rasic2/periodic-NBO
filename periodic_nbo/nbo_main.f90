@@ -12,7 +12,7 @@ PROGRAM nbo_main
   IMPLICIT NONE
 
   !Command line arguments
-  CHARACTER*128 :: buffer
+  CHARACTER*128 :: buffer,coeffile
 
   !Define total number of atoms, basis functions, and (relevant) real-space matrices (i.e. overlap and density)
   !See PRB, 61, 16440, "Linear-scaling DFT with Gaussian orbitals...", Kudin and Scuseria for details of the
@@ -59,28 +59,22 @@ PROGRAM nbo_main
   REAL*8     :: t1,t2
 
   !Variables for visualization
+  LOGICAL  ::  visualize  !Control output
   TYPE(AO_function),ALLOCATABLE  ::  AO_basis(:)  !Info on all basis functions
   REAL*8, ALLOCATABLE    ::  atom_pos(:,:)   !Atomic positions within the central unit cell (in bohr?)
   REAL*8,DIMENSION(3,3)  ::  latt_vec        !Real space unit cell vectors (in bohr?)
   TYPE(vis_cont_struct)  :: vis_control
   REAL*8,ALLOCATABLE  ::  ao_coeff(:,:,:,:)
+  REAL*8 :: coeff_value
   !End of visualization variables
 
-
   !Checkpoint file information
-  LOGICAL :: checkpoint_exists, write_checkpoint
+  LOGICAL :: checkpoint_exists, write_checkpoint, read_coeff
   !Configuration file control
   LOGICAL :: write_config
 
-  !Variables used for visualization output
-  LOGICAL  ::  visualize  !Control output
-!  INTEGER  ::  vis_start,vis_end
-!  INTEGER  ::  mesh(3),box_int(3)
-!  REAL*8   ::  origin_fact
-!  LOGICAL  ::  write_density !Control whether density or wavefunctions will be written
-
   !Temporary variables
-  INTEGER :: ig,inbo,ik,i,j,k,ispin,nu
+  INTEGER :: ig,inbo,ik,i,j,k,ispin,nu,l,m,n,ni,nj,nm,nn
   COMPLEX*16  ::  arg
 
   INTEGER,ALLOCATABLE  :: nbond(:),nlp(:),nryd(:)
@@ -94,6 +88,7 @@ PROGRAM nbo_main
 
   checkpoint_exists=.FALSE.
   write_checkpoint=.FALSE.
+  read_coeff=.FALSE.
 
   !Do IO; first read the input file
   CALL GETARG(1,buffer)
@@ -103,20 +98,27 @@ PROGRAM nbo_main
 
   !See if a checkpoint file was specified
   IF (IARGC().GT.1) THEN
-     CALL GETARG(2,buffer)
-     OPEN(10, FILE=buffer, STATUS='old', FORM='unformatted', ERR=20)
+    CALL GETARG(2,buffer)
+    OPEN(10, FILE=buffer, STATUS='old', FORM='unformatted', ERR=20)
 
-     PRINT *, 'Reading density matrix in NAO basis from checkpoint file: ', buffer
-     READ(10) inp%rho0
-     READ(10) inp%transform
-     READ(10) inp%fock0
-     inp%s0=periodic_matiden(inp%nbasis)
-     checkpoint_exists=.TRUE.
-     GOTO 30
+    PRINT *, 'Reading density matrix in NAO basis from checkpoint file: ', buffer
+    READ(10) inp%rho0
+    READ(10) inp%transform
+    READ(10) inp%fock0
+    inp%s0=periodic_matiden(inp%nbasis)
+    checkpoint_exists=.TRUE.
+    GOTO 30
 
 20   write_checkpoint=.TRUE.
 
 30 ENDIF
+
+  !See if a ao_coeff file was specified
+  IF (IARGC().EQ.3) THEN
+    CALL GETARG(3,coeffile)
+    WRITE(6,*) 'Read ao_coeff from: ', coeffile
+    read_coeff=.TRUE.
+31 ENDIF
   
   !Check number of electrons and do transform to an orthogonal basis
   WRITE(6,*) 'Start calc_nelec'
@@ -176,6 +178,10 @@ PROGRAM nbo_main
   READ(40,*)vis_control%origin_fact
   !Here you could read in more parameters if we want to add some functionality
   CLOSE(40)
+
+  IF(read_coeff .AND. visualize) THEN
+    goto 361
+  ENDIF
 
 !  WRITE(6,*)buffer
 !  WRITE(6,*)nbo_1c_thresh
@@ -238,7 +244,6 @@ PROGRAM nbo_main
      nbo_2c_thresh = nbo_2c_thresh / 2.d0
 
   ENDIF
-
 
   !Make sure visualization parameters make sense
   IF( visualize )THEN
@@ -358,15 +363,40 @@ PROGRAM nbo_main
      ENDIF
   ENDDO
 
-  !!!!!!!!!!!!!!!!!
-  !This is STOP #1!
-  !!!!!!!!!!!!!!!!!
-  !STOP
+  !Convert the nbo orbitals with coeff in the NAO basis into coeff in the AO basis for visualization.
+  ALLOCATE(ao_coeff(nbasis,nnbo(1),ng,nspins))
+  DO ispin=1,nspins
+     DO inbo=1,nnbo(ispin)
+        ao_coeff(:,inbo,:,ispin) = periodic_matvecmul(transform,output(ispin)%coeff(:,inbo,:))
+     ENDDO
+  ENDDO
+
+  OPEN(11,FILE='nbo.coeff',STATUS='UNKNOWN')
+  WRITE(11,*) SIZE(ao_coeff,1),SIZE(ao_coeff,2),SIZE(ao_coeff,3),SIZE(ao_coeff,4)
+  WRITE(11,371) ((((ao_coeff(i,j,m,n),n=1,SIZE(ao_coeff,4)),m=1,SIZE(ao_coeff,3)),j=1,SIZE(ao_coeff,2)),i=1,SIZE(ao_coeff,1))
+371 FORMAT(1E25.16)
+
+  CLOSE(11)
+  goto 362
+
+361 CONTINUE
+
+  WRITE(6,*)
+  WRITE(6,*)
+  WRITE(6,*) 'start read coeff file'
+  OPEN(11,FILE=coeffile,STATUS='OLD')
+  READ(11,*) ni,nj,nm,nn
+  WRITE(6,*) ni,nj,nm,nn
+
+  ALLOCATE(ao_coeff(ni,nj,nm,nn))
+  ao_coeff=0.d0
+  READ(11,371) ((((ao_coeff(i,j,m,n),n=1,nn),m=1,nm),j=1,nj),i=1,ni) 
+  CLOSE(11)
+362 CONTINUE
 
   !This section of the code is for visualization purposes.
   IF( .NOT.visualize ) GOTO 90
 
-  WRITE(6,*)
   WRITE(6,*)
   WRITE(6,'(A)')' ******************************* '
   WRITE(6,'(A)')' ******** VISUALIZATION ******** '
@@ -380,20 +410,11 @@ PROGRAM nbo_main
   WRITE(6,'(A10,I5,A8,I5)')'Start:  ',vis_control%vis_start,'End:  ',vis_control%vis_end
   WRITE(6,*)
 
-  ALLOCATE(ao_coeff(nbasis,nnbo(1),ng,nspins))
-
-  !Convert the nbo orbitals with coeff in the NAO basis into coeff in the AO basis for visualization.
-  DO ispin=1,nspins
-     DO inbo=1,nnbo(ispin)
-        ao_coeff(:,inbo,:,ispin) = periodic_matvecmul(transform,output(ispin)%coeff(:,inbo,:))
-     ENDDO
-  ENDDO
-
   !AO_basis,atom_pos,indexg,latt_vec,iatnum: obtained from read_input_file
   !vis_control: nbo.config
   CALL NBO_visualization(AO_basis,ao_coeff,atom_pos,indexg,latt_vec,iatnum,vis_control)
 
-  STOP
+  STOP !Visualize stop 1#
 
   !Now actually write out a file to be read in for use in visualization
   OPEN(95,file='nbo_vis.out')
